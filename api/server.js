@@ -76,6 +76,11 @@ app.post('/register', (req, res) => {
     })
 })
 
+const accountSid = process.env.TWILIO_ACCOUNT_SID;
+const authToken = process.env.TWILIO_AUTH_TOKEN;
+const client = require('twilio')(accountSid, authToken);
+
+
 app.post('/login', (req, res) => {
     const user = new User({
         username: req.body.username,
@@ -100,10 +105,28 @@ app.post('/appointment', (req, res) => {
             lastName: req.body.lastName,
             phone: req.body.phone,
             date: req.body.date,
-            hour: req.body.hour,
-            minute: req.body.minute
         }
+        User.findByIdAndUpdate(req.user._id, { $push: { appointments: newAppointment } }, function(err, foundUser) {
+            if (err) {
+                console.log(err);
+            } else {
+                res.send(foundUser.appointments)
+            }
+        })
     }
+})
+
+app.get('/sms', (req, res) => {
+    client.messages
+        .create({
+            body: 'Frigid and Spellbound',
+            from: process.env.TWILIO_PHONE,
+            to: process.env.STONE_PHONE
+        })
+        .then(message => {
+            res.send(message)
+        })
+
 })
 
 app.get('logout', (req, res) => {
