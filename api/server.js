@@ -116,18 +116,70 @@ app.post('/appointment', (req, res) => {
     }
 })
 
-app.get('/sms', (req, res) => {
-    client.messages
-        .create({
-            body: 'Frigid and Spellbound',
-            from: process.env.TWILIO_PHONE,
-            to: process.env.STONE_PHONE
-        })
-        .then(message => {
-            res.send(message)
-        })
+const CronJob = require('cron').CronJob;
+const moment = require('moment');
 
-})
+const retrieveDates = () => {
+    let appointments = []
+    User.find({}, (err, foundUsers) => {
+        if (err) {
+            console.log(err);
+        } else {
+            foundUsers.forEach(element => {
+                element.appointments.forEach(appointment => {
+                    appointments.push(
+                        {
+                            date: appointment.date,
+                            firstName: element.firstName,
+                            lastName: element.lastName
+                        }
+                    )
+                })
+            })
+        }
+    })
+    
+    return appointments
+}
+const appointments = retrieveDates()
+
+const sendNotifications = () => {
+    appointments.forEach(appointment => {
+        const year = moment(appointment.date).utc().year()
+        const month = moment(appointment.date).utc().month()
+        const day = moment(appointment.date).utc().day()
+        const hour = moment(appointment.date).utc().hour()
+
+        if (
+            moment().utc().year() === year && 
+            moment().utc().month() === month && 
+            moment().utc().day() + 2 === day && 
+            moment().utc().hour() === hour 
+        ) {
+            client.messages
+                .create({
+                    body: `You have an appointment with ${appointment.firstName} ${appointment.lastName} on ${appointment.date}`,
+                    from: process.env.TWILIO_PHONE,
+                    to: process.env.STONE_PHONE
+                })
+            console.log('sending now');
+        }
+    })
+}
+
+
+const scheduler = () => {
+    new CronJob(
+        '0 0 * * * *',
+        () => {
+            sendNotifications()
+        },
+        null,
+        true,
+        ''
+    )
+}
+scheduler()
 
 app.get('logout', (req, res) => {
     req.logout()
