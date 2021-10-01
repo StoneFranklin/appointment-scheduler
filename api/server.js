@@ -4,6 +4,7 @@ const mongoose = require('mongoose')
 const session = require('express-session')
 const passport = require('passport')
 const passportLocalMongoose = require('passport-local-mongoose')
+const cors = require('cors')
 require('dotenv').config({path: '../.env'});
 
 const app = express()
@@ -20,6 +21,12 @@ app.use(session({
 
 app.use(passport.initialize())
 app.use(passport.session())
+
+// set up cors to allow us to accept requests from our client
+app.use(cors({
+    origin: 'http://localhost:3000',
+    credentials: true
+}));
 
 mongoose.connect(process.env.MONGO, 
     { 
@@ -185,14 +192,13 @@ app.get('logout', (req, res) => {
     req.logout()
 })
 
-app.get('/', (req, res) => {
-    Test.find(function(err, users) {
-        if(err) {
-            res.send(err)
-        } else {
-            res.send(users)
-        }
-    })
+app.get('/check-session', (req, res) => {
+    if(req.isAuthenticated()) {
+        res.send('You are logged in')
+    } else {
+        res.send('redirect')
+    }
+    
 })
 
 app.listen(port, () => {
