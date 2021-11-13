@@ -8,6 +8,7 @@ import {
 import Register from './screens/Register';
 import Dashboard from './screens/Dashboard';
 import Login from './screens/Login';
+import Landing from './screens/Landing';
 
 function App() {
   return (
@@ -19,6 +20,9 @@ function App() {
           </Route>
           <Route path="/login">
             <Login />
+          </Route>
+          <Route path="/landing">
+            <Landing />
           </Route>
           <Route path="/">
             <Dashboard />

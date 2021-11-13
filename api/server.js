@@ -41,14 +41,14 @@ const { Schema } = mongoose
 const userSchema = new Schema({
     firstName: String,
     lastName: String,
+    username: String,
+    password: String,
     appointments: [
         {
-            firstName: String,
-            lastName: String,
+            title: String,
             phone: String,
-            date: Date,
-            hour: Number,
-            minute: Number
+            start: Date,
+            end: Date,
         }
     ]
 })
@@ -62,16 +62,11 @@ passport.use(User.createStrategy())
 passport.serializeUser(User.serializeUser())
 passport.deserializeUser(User.deserializeUser())
 
-const testSchema = new Schema({
-    value: String
-})
-
-const Test = mongoose.model('Test', testSchema)
-
 app.post('/register', (req, res) => {
     User.register({ username: req.body.username }, req.body.password, function(err, user) {
         if (err) {
             console.log(err);
+            res.send(err)
         } else {
             user.firstName = req.body.firstName
             user.lastName = req.body.lastName
@@ -107,11 +102,13 @@ app.post('/login', (req, res) => {
 
 app.post('/appointment', (req, res) => {
     if(req.isAuthenticated()) {
+        console.log(req.body.start);
+        console.log(req.body.end);
         const newAppointment = {
-            firstName: req.body.firstName,
-            lastName: req.body.lastName,
+            title: `${req.body.firstName} ${req.body.lastName}`,
             phone: req.body.phone,
-            date: req.body.date,
+            start: req.body.start,
+            end: req.body.end
         }
         User.findByIdAndUpdate(req.user._id, { $push: { appointments: newAppointment } }, function(err, foundUser) {
             if (err) {
@@ -120,6 +117,8 @@ app.post('/appointment', (req, res) => {
                 res.send(foundUser.appointments)
             }
         })
+    } else {
+        res.send('redirect')
     }
 })
 
@@ -136,9 +135,10 @@ const retrieveDates = () => {
                 element.appointments.forEach(appointment => {
                     appointments.push(
                         {
-                            date: appointment.date,
+                            start: appointment.start,
                             firstName: element.firstName,
-                            lastName: element.lastName
+                            lastName: element.lastName,
+                            phone: appointment.phone
                         }
                     )
                 })
@@ -152,32 +152,39 @@ const appointments = retrieveDates()
 
 const sendNotifications = () => {
     appointments.forEach(appointment => {
-        const year = moment(appointment.date).utc().year()
-        const month = moment(appointment.date).utc().month()
-        const day = moment(appointment.date).utc().day()
-        const hour = moment(appointment.date).utc().hour()
-
+        const start = new Date(appointment.start)
+        console.log(start);
+        const year = start.getUTCFullYear()
+        const month = start.getUTCMonth() + 1
+        const day = start.getUTCDate()
+        const hour = start.getUTCHours()
+        const phone = appointment.phone
+        console.log(year);
+        console.log(month);
+        console.log(day);
+        console.log(hour);
+        const today = new Date()
+        const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
         if (
-            moment().utc().year() === year && 
-            moment().utc().month() === month && 
-            moment().utc().day() + 2 === day && 
-            moment().utc().hour() === hour 
+            today.getUTCFullYear() === year && 
+            today.getUTCMonth() + 1 === month && 
+            today.getUTCDate() + 2 === day && 
+            today.getUTCHours() === hour 
         ) {
             client.messages
                 .create({
-                    body: `You have an appointment with ${appointment.firstName} ${appointment.lastName} on ${appointment.date}`,
+                    body: `You have an appointment with ${appointment.firstName} ${appointment.lastName} on ${start.toLocaleDateString("en-US", options)} at ${start.toLocaleTimeString("en-US", { hour12: true, hour: 'numeric', minute: 'numeric' })}`,
                     from: process.env.TWILIO_PHONE,
-                    to: process.env.STONE_PHONE
+                    to: phone
                 })
             console.log('sending now');
         }
     })
 }
 
-
 const scheduler = () => {
     new CronJob(
-        '0 0 * * * *',
+        '10 * * * * *',
         () => {
             sendNotifications()
         },
@@ -188,8 +195,14 @@ const scheduler = () => {
 }
 scheduler()
 
-app.get('logout', (req, res) => {
+app.get('/logout', (req, res) => {
     req.logout()
+    res.send('logged out')
+    if(req.isAuthenticated()) {
+        console.log('Still logged in');
+    } else {
+        console.log('Logged out');
+    } 
 })
 
 app.get('/check-session', (req, res) => {
@@ -199,6 +212,35 @@ app.get('/check-session', (req, res) => {
         res.send('redirect')
     }
     
+})
+
+app.get('/appointments', (req, res) => {
+    if(req.isAuthenticated()) {
+        User.findById(req.user._id, function(err, foundUser) {
+            if(err) {
+                console.log(err);
+            } else {
+                if(foundUser) {
+                    res.send({
+                        appointments: foundUser.appointments,
+                        name: `${req.user.firstName} ${req.user.lastName}`
+                    });
+                }
+            }
+        })
+    } else {
+        res.send('redirect')
+    }
+})
+
+app.delete('/appointments/:appointmentID', (req, res) => {
+    User.findByIdAndUpdate(req.user._id, { $pull: { appointments: { _id: req.params.appointmentID } } }, function(err, foundUser) {
+        if(err) {
+            console.log(err);
+        } else {
+            res.send(foundUser);
+        }
+    });
 })
 
 app.listen(port, () => {
