@@ -5,6 +5,7 @@ const session = require('express-session')
 const passport = require('passport')
 const passportLocalMongoose = require('passport-local-mongoose')
 const cors = require('cors')
+const CronJob = require('cron').CronJob
 require('dotenv').config({path: '../.env'});
 
 const app = express()
@@ -28,6 +29,7 @@ app.use(cors({
     credentials: true
 }));
 
+// Connect to DB
 mongoose.connect(process.env.MONGO, 
     { 
         useNewUrlParser: true,
@@ -62,6 +64,78 @@ passport.use(User.createStrategy())
 passport.serializeUser(User.serializeUser())
 passport.deserializeUser(User.deserializeUser())
 
+// Send SMS messages to all clients who have an appointments exactly two days from current time. 
+const sendNotifications = (appointments) => {
+    appointments.forEach(appointment => {
+        const start = new Date(appointment.start)
+        const year = start.getUTCFullYear()
+        const month = start.getUTCMonth() + 1
+        const day = start.getUTCDate()
+        const hour = start.getUTCHours()
+        const phone = appointment.phone
+        const today = new Date()
+        const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+        if (
+            today.getUTCFullYear() === year && 
+            today.getUTCMonth() + 1 === month && 
+            today.getUTCDate() + 2 === day && 
+            today.getUTCHours() === hour 
+        ) {
+            client.messages
+                .create({
+                    body: `You have an appointment with ${appointment.firstName} ${appointment.lastName} on ${start.toLocaleDateString("en-US", options)} at ${start.toLocaleTimeString("en-US", { hour12: true, hour: 'numeric', minute: 'numeric' })}`,
+                    from: process.env.TWILIO_PHONE,
+                    to: phone
+                })
+            console.log('sending now');
+        }
+    })
+}
+
+// Find and return all appointments
+const retrieveDates = () => {
+    let appointments = []
+    User.find({}, (err, foundUsers) => {
+        if (err) {
+            console.log(err);
+        } else {
+            foundUsers.forEach(element => {
+                element.appointments.forEach(appointment => {
+                    appointments.push(
+                        {
+                            start: appointment.start,
+                            firstName: element.firstName,
+                            lastName: element.lastName,
+                            phone: appointment.phone
+                        }
+                    )
+                    
+                })
+            })
+            sendNotifications(appointments)
+        }
+    })
+}
+
+const accountSid = process.env.TWILIO_ACCOUNT_SID;
+const authToken = process.env.TWILIO_AUTH_TOKEN;
+const client = require('twilio')(accountSid, authToken);
+
+// Sends notifications every hour.
+const scheduler = () => {
+    new CronJob(
+        '0 * * * * *',
+        () => {
+            retrieveDates()
+        },
+        null,
+        true,
+        ''
+    )
+}
+scheduler()
+
+// Register a new user
 app.post('/register', (req, res) => {
     User.register({ username: req.body.username }, req.body.password, function(err, user) {
         if (err) {
@@ -78,11 +152,7 @@ app.post('/register', (req, res) => {
     })
 })
 
-const accountSid = process.env.TWILIO_ACCOUNT_SID;
-const authToken = process.env.TWILIO_AUTH_TOKEN;
-const client = require('twilio')(accountSid, authToken);
-
-
+// Login an existing user
 app.post('/login', (req, res) => {
     const user = new User({
         username: req.body.username,
@@ -100,6 +170,17 @@ app.post('/login', (req, res) => {
     })
 })
 
+// Check is there is a valid session
+app.get('/check-session', (req, res) => {
+    if(req.isAuthenticated()) {
+        res.send('You are logged in')
+    } else {
+        res.send('redirect')
+    }
+    
+})
+
+// Create a new appointment
 app.post('/appointment', (req, res) => {
     if(req.isAuthenticated()) {
         console.log(req.body.start);
@@ -122,98 +203,7 @@ app.post('/appointment', (req, res) => {
     }
 })
 
-const CronJob = require('cron').CronJob;
-const moment = require('moment');
-
-const retrieveDates = () => {
-    let appointments = []
-    User.find({}, (err, foundUsers) => {
-        if (err) {
-            console.log(err);
-        } else {
-            foundUsers.forEach(element => {
-                element.appointments.forEach(appointment => {
-                    appointments.push(
-                        {
-                            start: appointment.start,
-                            firstName: element.firstName,
-                            lastName: element.lastName,
-                            phone: appointment.phone
-                        }
-                    )
-                })
-            })
-        }
-    })
-    
-    return appointments
-}
-const appointments = retrieveDates()
-
-const sendNotifications = () => {
-    appointments.forEach(appointment => {
-        const start = new Date(appointment.start)
-        console.log(start);
-        const year = start.getUTCFullYear()
-        const month = start.getUTCMonth() + 1
-        const day = start.getUTCDate()
-        const hour = start.getUTCHours()
-        const phone = appointment.phone
-        console.log(year);
-        console.log(month);
-        console.log(day);
-        console.log(hour);
-        const today = new Date()
-        const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-        if (
-            today.getUTCFullYear() === year && 
-            today.getUTCMonth() + 1 === month && 
-            today.getUTCDate() + 2 === day && 
-            today.getUTCHours() === hour 
-        ) {
-            client.messages
-                .create({
-                    body: `You have an appointment with ${appointment.firstName} ${appointment.lastName} on ${start.toLocaleDateString("en-US", options)} at ${start.toLocaleTimeString("en-US", { hour12: true, hour: 'numeric', minute: 'numeric' })}`,
-                    from: process.env.TWILIO_PHONE,
-                    to: phone
-                })
-            console.log('sending now');
-        }
-    })
-}
-
-const scheduler = () => {
-    new CronJob(
-        '10 * * * * *',
-        () => {
-            sendNotifications()
-        },
-        null,
-        true,
-        ''
-    )
-}
-scheduler()
-
-app.get('/logout', (req, res) => {
-    req.logout()
-    res.send('logged out')
-    if(req.isAuthenticated()) {
-        console.log('Still logged in');
-    } else {
-        console.log('Logged out');
-    } 
-})
-
-app.get('/check-session', (req, res) => {
-    if(req.isAuthenticated()) {
-        res.send('You are logged in')
-    } else {
-        res.send('redirect')
-    }
-    
-})
-
+// Retrieve all a user's appointments
 app.get('/appointments', (req, res) => {
     if(req.isAuthenticated()) {
         User.findById(req.user._id, function(err, foundUser) {
@@ -233,6 +223,18 @@ app.get('/appointments', (req, res) => {
     }
 })
 
+// Log a user out
+app.get('/logout', (req, res) => {
+    req.logout()
+    res.send('logged out')
+    if(req.isAuthenticated()) {
+        console.log('Still logged in');
+    } else {
+        console.log('Logged out');
+    } 
+})
+
+// Delete a single appointment
 app.delete('/appointments/:appointmentID', (req, res) => {
     User.findByIdAndUpdate(req.user._id, { $pull: { appointments: { _id: req.params.appointmentID } } }, function(err, foundUser) {
         if(err) {

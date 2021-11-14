@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom'
 import { TextField, Button, Grid } from '@mui/material'
 import '../App.css'
 
+// Page containing login form
 const Login = () => {
     const [loggedIn, setLoggedIn] = useState(false)
     const [username, setUsername] = useState('')

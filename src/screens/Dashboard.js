@@ -7,6 +7,7 @@ import moment from 'moment'
 import 'react-big-calendar/lib/css/react-big-calendar.css'
 import TopBar from '../components/TopBar'
 
+// Page contianing the calendar. Main page of the appliction, allowing users to create and delete appointments.
 const Dashboard = () => {
     const [loggedIn, setLoggedIn] = useState(true)
     const [appointments, setAppointments] = useState([])
@@ -136,7 +137,6 @@ const Dashboard = () => {
     return (
         <div className="dashboard-container">
             <TopBar name={username} />
-            
             <div>
                 <Calendar
                 selectable
@@ -150,7 +150,6 @@ const Dashboard = () => {
                 onSelectSlot={handleOpenCreate}
                 />
             </div>
-
             <Modal
                 open={openCreate}
                 onClose={handleCloseCreate}
@@ -167,7 +166,6 @@ const Dashboard = () => {
                     </form>
                 </div>
             </Modal>
-
             <Modal
                 open={openExisting}
                 onClose={handleCloseExisting}
@@ -179,8 +177,7 @@ const Dashboard = () => {
                     </form>
                 </div>
             </Modal> 
-        </div>
-        
+        </div> 
     )
 }
 

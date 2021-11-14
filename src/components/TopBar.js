@@ -5,13 +5,17 @@ import { Redirect } from 'react-router'
 import { Button, Menu, MenuItem } from '@mui/material'
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 
+// Top bar containing app logo, username, and logout button
 const TopBar = (props) => {
     const [loggedIn, setLoggedIn] = useState(true)
     const [anchorEl, setAnchorEl] = React.useState(null);
+
     const open = Boolean(anchorEl);
+
     const handleClick = (event) => {
         setAnchorEl(event.currentTarget);
     }
+    
     const handleClose = () => {
         setAnchorEl(null);
     }

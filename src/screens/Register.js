@@ -4,6 +4,7 @@ import '../App.css'
 import axios from 'axios'
 import { Redirect, Link } from 'react-router-dom'
 
+// Page containing register form
 const Register = () => {
     const [firstName, setFirstName] = useState('')
     const [lastName, setLastName] = useState('')
